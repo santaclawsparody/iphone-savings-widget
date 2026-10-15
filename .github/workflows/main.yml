@@ -12,10 +12,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
+      - name: Find and extract ZIP
         run: |
+          ZIP=$(find . -maxdepth 2 -type f -iname '*.zip' | head -n 1)
+          if [ -z "$ZIP" ]; then
+            echo "ERROR: No ZIP file found."
+            ls -la
+            exit 1
+          fi
+          echo "Found ZIP: $ZIP"
           mkdir project
-          unzip -o iPhoneSavingsWidget-project.zip -d project
+          unzip -o "$ZIP" -d project
+
+      - name: Inspect Android project
+        run: |
+          echo "Searching for Gradle files..."
+          find project -type f \( \
+            -name gradlew -o \
+            -name settings.gradle -o \
+            -name settings.gradle.kts -o \
+            -name build.gradle -o \
+            -name build.gradle.kts \
+          \)
+          if ! find project -type f -name gradlew | grep -q .; then
+            echo "No Gradle wrapper found."
+            echo "Files inside ZIP:"
+            find project -maxdepth 4 -type f | head -100
+            exit 1
+          fi
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -25,14 +49,15 @@ jobs:
 
       - name: Build APK
         run: |
-          sudo apt-get update
-          sudo apt-get install -y android-sdk
-          find project -name gradlew -exec chmod +x {} \;
-          cd "$(dirname "$(find project -name gradlew | head -n 1)")"
+          GRADLEW=$(find project -type f -name gradlew | head -n 1)
+          cd "$(dirname "$GRADLEW")"
+          chmod +x gradlew
           ./gradlew assembleDebug
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: iPhoneSavingsWidget-APK
           path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
