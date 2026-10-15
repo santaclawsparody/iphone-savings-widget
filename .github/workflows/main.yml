@@ -3,10 +3,6 @@ name: Build iPhone Savings Widget APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '*.zip'
-      - '.github/workflows/main.yml'
 
 jobs:
   build:
@@ -16,15 +12,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract project ZIP
+      - name: Extract project ZIP
         run: |
-          ZIP=$(find . -maxdepth 1 -type f -iname '*.zip' | head -n 1)
-          if [ -z "$ZIP" ]; then
-            echo "No ZIP file found in repository root"
-            exit 1
-          fi
           mkdir project
-          unzip -q "$ZIP" -d project
+          unzip -o iPhoneSavingsWidget-project.zip -d project
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -32,19 +23,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Build APK
         run: |
-          GRADLEW=$(find project -type f -name gradlew | head -n 1)
-          if [ -z "$GRADLEW" ]; then
-            echo "No Gradle wrapper found in ZIP"
-            find project -maxdepth 3 -type f | head -n 80
-            exit 1
-          fi
-          cd "$(dirname "$GRADLEW")"
-          chmod +x gradlew
+          sudo apt-get update
+          sudo apt-get install -y android-sdk
+          find project -name gradlew -exec chmod +x {} \;
+          cd "$(dirname "$(find project -name gradlew | head -n 1)")"
           ./gradlew assembleDebug
 
       - name: Upload APK
@@ -52,4 +36,3 @@ jobs:
         with:
           name: iPhoneSavingsWidget-APK
           path: project/**/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
